@@ -1,0 +1,15 @@
+{% extends 'master/base.html' %}
+
+{% block content %}
+    <h1>Profile Info</h1>
+    <p>Name:{{request.user.display_name}}</p>
+    <p>Email: {{request.user.email}}</p>
+    <p>User Type: {{request.user.user_type}}</p>
+    {% if request.user.user_type == 'Recruiter' %}
+    <p>Company Name: {{request.user.recruiter_profile.company_name}}</p>
+    {% else %}
+    <p>Skill Sets: {{request.user.seeker_profile.skills_set}}</p>
+    {% endif %}
+    <a href="{% url 'update_profile_view' %}" class="btn btn-primary">Update Profile</a>
+{% endblock content %}
+    
