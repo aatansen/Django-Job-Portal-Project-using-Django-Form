@@ -5,6 +5,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import login, logout
 from JobPortalApp.forms import *
 from JobPortalApp.models import *
+from django.db.models import Q
 
 def register_view(request):
     if request.method == 'POST':
@@ -45,8 +46,24 @@ def login_view(request):
 
 @login_required
 def dashboard_view(request):
+    try:
+        seeker_data = request.user.seeker_profile
+    except:
+        messages.error(request, 'Please, Update your profile first.')
+        return redirect('update_profile_view')
+    job_data = JobPostModel.objects.none()
+    if request.user.user_type == 'Seeker':
+        seeker_skill = request.user.seeker_profile.skills_set
 
-    return render(request, 'dashboard.html')
+        for skill in seeker_skill.split(','):
+            cleaned_skill = skill.strip()
+            job_data |= JobPostModel.objects.filter(skills_set__icontains = cleaned_skill)
+
+    context = {
+        "job_data": job_data
+    }
+
+    return render(request, 'dashboard.html',context)
 
 @login_required
 def logout_view(request):
@@ -101,11 +118,25 @@ def update_profile_view(request):
 def browse_job_view(request):
     current_user = request.user
     print(current_user)
-    if not current_user:
-        if current_user.user_type == 'Recruiter':
-            job_data = JobPostModel.objects.filter(posted_by = current_user.recruiter_profile)
+    search_query = request.GET.get('search_query')
 
     job_data = JobPostModel.objects.all()
+    print("browse job: ", job_data)
+
+    if  current_user.is_authenticated:
+        print("sdlfjsdlfka")
+        if current_user.user_type == 'Recruiter':
+            try:
+                job_data = JobPostModel.objects.filter(posted_by = current_user.recruiter_profile)
+            except:
+                messages.error(request, 'Please, Update your profile first.')
+                return redirect('update_profile_view')
+    if search_query:
+        job_data = JobPostModel.objects.filter(
+            Q(title__icontains = search_query) |
+            Q(category__name__icontains = search_query) |
+            Q(posted_by__company_name__icontains = search_query)
+        )
     context = {
         'job_data': job_data
     }
@@ -203,7 +234,11 @@ def apply_job_view(request, id):
     return render(request, 'master/base-form.html', context)
 
 def my_application(request):
-    my_application = ApplyJobModel.objects.filter(applied_by = request.user.seeker_profile)
+    try:
+        my_application = ApplyJobModel.objects.filter(applied_by = request.user.seeker_profile)
+    except:
+        messages.error(request, 'Please, Update your profile first.')
+        return redirect('update_profile_view')
     context = {
         'application_list': my_application,
         'title': 'My Application Page',
@@ -213,13 +248,22 @@ def my_application(request):
     return render(request, 'my-applications.html',context)
 
 def candidate_list_view(request, id):
-    job_data = JobPostModel.objects.get(id = id)
+
+    job_data = JobPostModel.objects.get(id=id)
     candidate_data = ApplyJobModel.objects.filter(applied_job=job_data)
 
+    # status update
+    if request.method == "POST":
+        candidate_id = request.POST.get('candidate_id')
+        status = request.POST.get('status')
+        candidate = ApplyJobModel.objects.get(id=candidate_id)
+        candidate.status = status
+        candidate.save()
+        return redirect('candidate_list_view', id=id)
+
     context = {
-        'candidate_data':candidate_data,
+        'candidate_data': candidate_data,
         'job_data': job_data,
-        'application_list': my_application,
         'title': 'Candidate List Page',
     }
-    return render(request, 'candidate-list.html',context)
+    return render(request,'candidate-list.html',context)

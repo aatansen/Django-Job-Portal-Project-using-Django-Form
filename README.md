@@ -28,6 +28,8 @@
       - [Seeker job apply](#seeker-job-apply)
       - [Show All Applied Job](#show-all-applied-job)
     - [Candidate List](#candidate-list)
+    - [Search jobs](#search-jobs)
+    - [Skill Match Jobs](#skill-match-jobs)
 
 ## Question
 
@@ -236,6 +238,7 @@
 
     ```py
     class ApplyJobModel(models.Model):
+      # relation field
       applied_by = models.ForeignKey(
         SeekerProfileModel,
         on_delete=models.CASCADE,
@@ -248,6 +251,14 @@
         related_name='applied_job_info',
         null=True
       )
+      STATUS_CHOICES = [
+            ('Pending', 'Pending'),
+            ('Reviewing', 'Reviewing'),
+            ('Interview', 'Interview'),
+            ('Rejected', 'Rejected'),
+            ('Accepted', 'Accepted'),
+        ]
+      status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending', null=True)
       resume = models.FileField(upload_to='seeker_resume', null=True)
       applied_at = models.DateField(auto_now_add=True, null=True)
 
@@ -727,7 +738,11 @@ def apply_job_view(request, id):
 
   ```py
   def my_application(request):
-      my_application = ApplyJobModel.objects.filter(applied_by = request.user.seeker_profile)
+      try:
+          my_application = ApplyJobModel.objects.filter(applied_by = request.user.seeker_profile)
+      except:
+          messages.error(request, 'Please, Update your profile first.')
+          return redirect('update_profile_view')
       context = {
           'application_list': my_application,
           'title': 'My Application Page',
@@ -740,23 +755,146 @@ def apply_job_view(request, id):
 ---
 [⬆️ Go to Context](#context)
 
+---
+[⬆️ Go to Context](#context)
+
 ### Candidate List
 
 - Recruiter can see who applied to the job
 
   ```py
   def candidate_list_view(request, id):
-      job_data = JobPostModel.objects.get(id = id)
+
+      job_data = JobPostModel.objects.get(id=id)
       candidate_data = ApplyJobModel.objects.filter(applied_job=job_data)
 
+      # status update
+      if request.method == "POST":
+          candidate_id = request.POST.get('candidate_id')
+          status = request.POST.get('status')
+          candidate = ApplyJobModel.objects.get(id=candidate_id)
+          candidate.status = status
+          candidate.save()
+          return redirect('candidate_list_view', id=id)
+
       context = {
-          'candidate_data':candidate_data,
+          'candidate_data': candidate_data,
           'job_data': job_data,
-          'application_list': my_application,
           'title': 'Candidate List Page',
       }
-      return render(request, 'candidate-list.html',context)
+      return render(request,'candidate-list.html',context)
   ```
+
+  - In here we have process the status of the candidate also
+  - We have to update the HTML page status section table data as below
+
+    ```jinja
+    <td>
+        <form method="POST">
+            {% csrf_token %}
+
+            <input type="hidden" name="candidate_id" value="{{candidate.id}}">
+
+            <select name="status"
+                    class="form-select"
+                    onchange="this.form.submit()">
+
+                <option value="Pending"
+                {% if candidate.status == 'Pending' %}selected{% endif %}>
+                Pending
+                </option>
+
+                <option value="Reviewing"
+                {% if candidate.status == 'Reviewing' %}selected{% endif %}>
+                Reviewing
+                </option>
+
+                <option value="Interview"
+                {% if candidate.status == 'Interview' %}selected{% endif %}>
+                Interview
+                </option>
+
+                <option value="Rejected"
+                {% if candidate.status == 'Rejected' %}selected{% endif %}>
+                Rejected
+                </option>
+
+            </select>
+        </form>
+    </td>
+    ```
+
+
+---
+[⬆️ Go to Context](#context)
+
+### Search jobs
+
+- We need to update `browse_job_view` function
+
+  ```py
+  def browse_job_view(request):
+      current_user = request.user
+      print(current_user)
+      search_query = request.GET.get('search_query')
+
+      job_data = JobPostModel.objects.all()
+      print("browse job: ", job_data)
+
+      if  current_user.is_authenticated:
+          if current_user.user_type == 'Recruiter':
+              try:
+                  job_data = JobPostModel.objects.filter(posted_by = current_user.recruiter_profile)
+              except:
+                  messages.error(request, 'Please, Update your profile first.')
+                  return redirect('update_profile_view')
+      if search_query:
+          job_data = JobPostModel.objects.filter(
+              Q(title__icontains = search_query) |
+              Q(category__name__icontains = search_query) |
+              Q(posted_by__company_name__icontains = search_query)
+          )
+      context = {
+          'job_data': job_data
+      }
+      return render(request,'browse-jobs.html', context)
+  ```
+
+  - In here `Q` is used for search and `__icontains` is like finding similar
+  - We imported `Q` by `from django.db.models import Q`
+
+---
+[⬆️ Go to Context](#context)
+
+### Skill Match Jobs
+
+- Finally, we will update the `dashboard_view` function to show the skill match jobs
+
+  ```py
+  @login_required
+  def dashboard_view(request):
+      try:
+          seeker_data = request.user.seeker_profile
+      except:
+          messages.error(request, 'Please, Update your profile first.')
+          return redirect('update_profile_view')
+      job_data = JobPostModel.objects.none()
+      if request.user.user_type == 'Seeker':
+          seeker_skill = request.user.seeker_profile.skills_set
+
+          for skill in seeker_skill.split(','):
+              cleaned_skill = skill.strip()
+              job_data |= JobPostModel.objects.filter(skills_set__icontains = cleaned_skill)
+
+      context = {
+          "job_data": job_data
+      }
+
+      return render(request, 'dashboard.html',context)
+  ```
+
+  - We use split cause skill set are separated by `,` and `strip()` used to remove whitespace
+  - In here we are showing match skill which is being union by using `|=` so that duplicate data not shown
 
 ---
 [⬆️ Go to Context](#context)

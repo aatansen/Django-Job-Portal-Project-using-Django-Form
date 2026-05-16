@@ -11,6 +11,7 @@
         <th>Skill Set</th>
         <th>Applied Date</th>
         <th>Resume</th>
+        <th>Status</th>
 
     </tr>
 </thead>
@@ -27,9 +28,39 @@
             <a href="{{candidate.resume.url}}" target="_blank">Resume</a>
             {% endif %}
         </td>
+        <td>
+            <form method="POST">
+                {% csrf_token %}
+
+                <input type="hidden" name="candidate_id" value="{{candidate.id}}">
+
+                <select name="status" class="form-select" onchange="this.form.submit()">
+
+                    <option value="Pending"
+                    {% if candidate.status == 'Pending' %}selected{% endif %}>
+                    Pending
+                    </option>
+
+                    <option value="Reviewing"
+                    {% if candidate.status == 'Reviewing' %}selected{% endif %}>
+                    Reviewing
+                    </option>
+
+                    <option value="Interview"
+                    {% if candidate.status == 'Interview' %}selected{% endif %}>
+                    Interview
+                    </option>
+
+                    <option value="Rejected"
+                    {% if candidate.status == 'Rejected' %}selected{% endif %}>
+                    Rejected
+                    </option>
+
+                </select>
+            </form>
+        </td>
     </tr>
     {% endfor %}
 </tbody>
 </table>
 {% endblock content %}
-    

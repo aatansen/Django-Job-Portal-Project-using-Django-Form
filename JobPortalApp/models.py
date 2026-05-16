@@ -24,6 +24,7 @@ class RecruiterProfileModel(models.Model):
     null=True
   )
 
+  company_name=models.CharField(max_length=100, null=True)
   address = models.TextField(null=True)
   contact = models.CharField(max_length=20, null=True)
   logo = models.ImageField(upload_to='company_logo', null=True)
@@ -105,7 +106,14 @@ class ApplyJobModel(models.Model):
     related_name='applied_job_info',
     null=True
   )
-
+  STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Reviewing', 'Reviewing'),
+        ('Interview', 'Interview'),
+        ('Rejected', 'Rejected'),
+        ('Accepted', 'Accepted'),
+    ]
+  status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending', null=True)
   resume = models.FileField(upload_to='seeker_resume', null=True)
   applied_at = models.DateField(auto_now_add=True, null=True)
 
